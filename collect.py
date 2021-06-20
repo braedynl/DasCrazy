@@ -1,7 +1,8 @@
 import re
+import time
 from datetime import datetime
 from socket import socket
-from typing import Tuple
+from threading import Thread
 
 import pandas as pd
 import requests
@@ -22,17 +23,22 @@ REQUEST_HEADERS = {"Client-Id": CLIENT_ID, "Authorization": f"Bearer {BEARER_TOK
 # IRC response pattern
 SEARCH_PATTERN = re.compile(f":(.*)!.* PRIVMSG #{BROADCASTER_LOGIN} :(.*)\r\n")
 
+# Global variables (cheesy, I know)
+game_name = ''
+title = ''
 
-def fetch_metadata() -> Tuple[str, str]:
-    try:
+
+def metadata_worker() -> None:
+    global game_name, title
+
+    while True:
         resp = requests.get(REQUEST_URL, headers=REQUEST_HEADERS).json()
         data = resp['data'][0]
-        return data['game_name'], data['title']
+        game_name = data['game_name']
+        title = data['title']
 
-    except Exception as e:
-        print(f"Exception occured while fetching metadata: {e}")
-
-    return 'UNKNOWN', 'UNKNOWN'
+        print(f"[{datetime.now()}] Metadata updated")
+        time.sleep(900)
 
 
 def main(filename: str) -> None:
@@ -48,6 +54,14 @@ def main(filename: str) -> None:
     if not resp.startswith(f":tmi.twitch.tv 001 {PERSONAL_LOGIN} :Welcome, GLHF!"):
         resp = resp.replace('\n', '').replace('\r', '')
         raise RuntimeError(f"Connection to Twitch IRC failed, response: {resp}")
+
+    print("Connection to Twitch IRC successful, entering main loop...")
+    print("Use CTRL + C to stop at anytime\n--")
+
+    # Creates a thread to fetch stream metadata every 15 minutes, since it doesn't
+    # change often and the main loop needs to be fast
+    t = Thread(target=metadata_worker, daemon=True)
+    t.start()
 
     df = pd.read_csv(f'data/{filename}.csv')
     row_template = {"sent": '', "game_name": '', "title": '', "user": '', "message": ''}
@@ -67,8 +81,9 @@ def main(filename: str) -> None:
 
                 if "peepoHas" in message:
                     sent = datetime.now()
-                    game_name, title = fetch_metadata()
 
+                    # Declaring a dictionary and setting its values later is faster than
+                    # creating a dictionary with initial values - fun fact!
                     row_template["sent"] = sent
                     row_template["game_name"] = game_name
                     row_template["title"] = title
@@ -76,7 +91,7 @@ def main(filename: str) -> None:
                     row_template["message"] = message
 
                     df = df.append(row_template, ignore_index=True)
-                    print(f"[{sent}] {message}")
+                    print(f"[{sent}] {user}: {message}")
 
     except Exception as e:
         print(f"Exception occurred in main loop: {e}")
