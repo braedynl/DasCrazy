@@ -17,33 +17,25 @@ BROADCASTER_ID = 207813352
 SERVER = "irc.chat.twitch.tv"
 PORT = 6667
 REQUEST_URL = f"https://api.twitch.tv/helix/channels?broadcaster_id={BROADCASTER_ID}"
-REQUEST_HEADERS = {"Client-Id": CLIENT_ID,
-                   "Authorization": f"Bearer {BEARER_TOKEN}"}
+REQUEST_HEADERS = {"Client-Id": CLIENT_ID, "Authorization": f"Bearer {BEARER_TOKEN}"}
 
-# Response-parsing pattern
-SEARCH_PATTERN = re.compile(":(.*)!.* PRIVMSG #%s :(.*)" % BROADCASTER_LOGIN)
+# IRC response pattern
+SEARCH_PATTERN = re.compile(f":(.*)!.* PRIVMSG #{BROADCASTER_LOGIN} :(.*)\r\n")
 
 
-def get_metadata() -> Tuple[str, str]:
-    """
-    Fetch the broadcast's game name and title
-
-    Returns
-    -------
-    Tuple[str, str]
-        The game name and title, respectively
-    """
+def fetch_metadata() -> Tuple[str, str]:
     try:
-        data = requests.get(REQUEST_URL, headers=REQUEST_HEADERS).json()['data'][0]
+        resp = requests.get(REQUEST_URL, headers=REQUEST_HEADERS).json()
+        data = resp['data'][0]
         return data['game_name'], data['title']
+
     except Exception as e:
-        print("Error occured while fetching metadata:", e)
+        print(f"Exception occured while fetching metadata: {e}")
+
     return 'UNKNOWN', 'UNKNOWN'
 
 
-def main():
-    df = pd.read_csv('data/real.csv')
-
+def main(filename: str) -> None:
     sock = socket()
     sock.connect((SERVER, PORT))
 
@@ -51,65 +43,54 @@ def main():
     sock.send(f"NICK {PERSONAL_LOGIN}\n".encode("utf-8"))
     sock.send(f"JOIN #{BROADCASTER_LOGIN}\n".encode("utf-8"))
 
-    resp = sock.recv(1024).decode("utf-8")
-    if "Welcome" not in resp:
-        print("Connection to Twitch IRC failed, response:")
-        print(resp)
-        return
+    resp = sock.recv(2048).decode("utf-8", errors='ignore')
 
-    print("Connection to Twitch IRC successful, entering main loop...")
-    print("Use CTRL + C to stop at anytime\n")
+    if not resp.startswith(f":tmi.twitch.tv 001 {PERSONAL_LOGIN} :Welcome, GLHF!"):
+        resp = resp.replace('\n', '').replace('\r', '')
+        raise RuntimeError(f"Connection to Twitch IRC failed, response: {resp}")
 
-    row_temp = {"sent": '', "game_name": '',
-                "title": '', "user": '', "message": ''}
+    df = pd.read_csv(f'data/{filename}.csv')
+    row_template = {"sent": '', "game_name": '', "title": '', "user": '', "message": ''}
 
     try:
         while True:
-            resp = sock.recv(1024).decode("utf-8", errors='ignore')
+            resp = sock.recv(2048).decode("utf-8", errors='ignore')
 
             if resp.startswith("PING"):
                 sock.send("PONG\n".encode("utf-8"))
-                print(f"Pong issued at {datetime.now()}")
+                print(f"[{datetime.now()}] PING")
                 continue
 
-            match = SEARCH_PATTERN.search(resp)
+            groups = SEARCH_PATTERN.findall(resp)
 
-            if match is None:
-                continue
+            for user, message in groups:
 
-            # A blanket search for just "peepoHas" is done here to save
-            # time before another recv() call; further classification
-            # to find if it's truly a "das crazy" moment is done in post
+                if "peepoHas" in message:
+                    sent = datetime.now()
+                    game_name, title = fetch_metadata()
 
-            user, message = match.groups()
+                    row_template["sent"] = sent
+                    row_template["game_name"] = game_name
+                    row_template["title"] = title
+                    row_template["user"] = user
+                    row_template["message"] = message
 
-            if "peepoHas" in message:
-                sent = datetime.now()
-                game_name, title = get_metadata()
+                    df = df.append(row_template, ignore_index=True)
+                    print(f"[{sent}] {message}")
 
-                # It's slightly faster to declare a dictionary first, and set its values later
-                # as opposed to initializating a dictionary with values
-                row_temp["sent"] = sent
-                row_temp["game_name"] = game_name
-                row_temp["title"] = title
-                row_temp["user"] = user
-                row_temp["message"] = message.replace('\n', ' ').replace('\r', '')
-
-                df = df.append(row_temp, ignore_index=True)
-
-                print(f"peepoHas found at {sent}")
-
-                # Did you know two chained replace() calls is faster than
-                # any other method to replace two substrings? Crazy...
+    except Exception as e:
+        print(f"Exception occurred in main loop: {e}")
 
     except KeyboardInterrupt:
-        print("Closing socket and exporting data...")
+        pass
 
-        sock.close()
-        df.to_csv('data/real.csv', index=False)
+    print("Closing socket and exporting data...")
 
-        print("Done.")
+    sock.close()
+    df.to_csv(f'data/{filename}.csv', index=False)
+
+    print("Done.")
 
 
 if __name__ == "__main__":
-    main()
+    main('data')
