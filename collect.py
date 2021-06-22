@@ -37,7 +37,7 @@ def metadata_worker() -> None:
         game_name = data['game_name']
         title = data['title']
 
-        print(f"[{datetime.now()}] Metadata updated")
+        print(f"[{datetime.now()}] METADATA UPDATED")
         time.sleep(900)
 
 
@@ -83,7 +83,7 @@ def main(filename: str) -> None:
                     sent = datetime.now()
 
                     # Declaring a dictionary and setting its values later is faster than
-                    # creating a dictionary with initial values - fun fact!
+                    # creating a dictionary with initial values
                     row_template["sent"] = sent
                     row_template["game_name"] = game_name
                     row_template["title"] = title
