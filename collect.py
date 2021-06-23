@@ -1,4 +1,5 @@
 import re
+import sys
 import time
 from datetime import datetime
 from socket import socket
@@ -37,11 +38,11 @@ def metadata_worker() -> None:
         game_name = data['game_name']
         title = data['title']
 
-        print(f"[{datetime.now()}] METADATA UPDATED")
+        sys.stdout.write(f"[{datetime.now()}] METADATA UPDATED\n")
         time.sleep(900)
 
 
-def main(filename: str) -> None:
+def main(filename: str, seconds: int = 36000) -> None:
     sock = socket()
     sock.connect((SERVER, PORT))
 
@@ -65,14 +66,17 @@ def main(filename: str) -> None:
 
     df = pd.read_csv(f'data/{filename}.csv')
     row_template = {"sent": '', "game_name": '', "title": '', "user": '', "message": ''}
+    t_end = time.time() + seconds
 
     try:
-        while True:
+        while time.time() < t_end:
             resp = sock.recv(2048).decode("utf-8", errors='ignore')
+
+            sys.stdout.write(resp)
 
             if resp.startswith("PING"):
                 sock.send("PONG\n".encode("utf-8"))
-                print(f"[{datetime.now()}] PING")
+                sys.stdout.write(f"[{datetime.now()}] PING\n")
                 continue
 
             groups = SEARCH_PATTERN.findall(resp)
@@ -91,7 +95,7 @@ def main(filename: str) -> None:
                     row_template["message"] = message
 
                     df = df.append(row_template, ignore_index=True)
-                    print(f"[{sent}] {user}: {message}")
+                    sys.stdout.write(f"[{sent}] {user}: {message}\n")
 
     except Exception as e:
         print(f"Exception occurred in main loop: {e}")
