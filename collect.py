@@ -61,8 +61,8 @@ def main(filename: str, seconds: int = 36000) -> None:
 
     # Creates a thread to fetch stream metadata every 15 minutes, since it doesn't
     # change often and the main loop needs to be fast
-    t = Thread(target=metadata_worker, daemon=True)
-    t.start()
+    thread = Thread(target=metadata_worker, daemon=True)
+    thread.start()
 
     df = pd.read_csv(f'data/{filename}.csv')
     row_template = {"sent": '', "game_name": '', "title": '', "user": '', "message": ''}
@@ -72,6 +72,7 @@ def main(filename: str, seconds: int = 36000) -> None:
         while time.time() < t_end:
             resp = sock.recv(2048).decode("utf-8", errors='ignore')
 
+            # Using stdout.write instead of print because it's sliiiightly faster
             sys.stdout.write(resp)
 
             if resp.startswith("PING"):
