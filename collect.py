@@ -112,4 +112,4 @@ def main(filename: str, seconds: int = 36000) -> None:
 
 
 if __name__ == "__main__":
-    main('data')
+    main('raw_data')
