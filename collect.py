@@ -66,10 +66,10 @@ def main(filename: str, seconds: int = 36000) -> None:
 
     df = pd.read_csv(f'data/{filename}.csv')
     row_template = {"sent": '', "game_name": '', "title": '', "user": '', "message": ''}
-    t_end = time.time() + seconds
+    time_end = time.time() + seconds
 
     try:
-        while time.time() < t_end:
+        while time.time() < time_end:
             resp = sock.recv(2048).decode("utf-8", errors='ignore')
 
             # Using stdout.write instead of print because it's sliiiightly faster
