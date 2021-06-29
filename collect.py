@@ -3,7 +3,7 @@ import sys
 import time
 from datetime import datetime
 from socket import socket
-from threading import Thread
+from typing import Tuple
 
 import pandas as pd
 import requests
@@ -24,25 +24,17 @@ REQUEST_HEADERS = {"Client-Id": CLIENT_ID, "Authorization": f"Bearer {BEARER_TOK
 # IRC response pattern
 SEARCH_PATTERN = re.compile(f":(.*)!.* PRIVMSG #{BROADCASTER_LOGIN} :(.*)\r\n")
 
-# Global variables (cheesy, I know)
-game_name = ''
-title = ''
+
+def fetch_metadata() -> Tuple[str, str]:
+    resp = requests.get(REQUEST_URL, headers=REQUEST_HEADERS).json()
+    data = resp['data'][0]
+    game_name = data['game_name']
+    title = data['title']
+
+    return game_name, title
 
 
-def metadata_worker() -> None:
-    global game_name, title
-
-    while True:
-        resp = requests.get(REQUEST_URL, headers=REQUEST_HEADERS).json()
-        data = resp['data'][0]
-        game_name = data['game_name']
-        title = data['title']
-
-        sys.stdout.write(f"[{datetime.now()}] METADATA UPDATED\n")
-        time.sleep(900)
-
-
-def main(filename: str, seconds: int = 36000) -> None:
+def main(filename: str, seconds: int = 900) -> None:
     sock = socket()
     sock.connect((SERVER, PORT))
 
@@ -59,14 +51,13 @@ def main(filename: str, seconds: int = 36000) -> None:
     print("Connection to Twitch IRC successful, entering main loop...")
     print("Use CTRL + C to stop at anytime\n--")
 
-    # Creates a thread to fetch stream metadata every 15 minutes, since it doesn't
-    # change often and the main loop needs to be fast
-    thread = Thread(target=metadata_worker, daemon=True)
-    thread.start()
+    game_name, title = fetch_metadata()
 
     df = pd.read_csv(f'data/{filename}.csv')
     row_template = {"sent": '', "game_name": '', "title": '', "user": '', "message": ''}
+    
     time_end = time.time() + seconds
+    loop = True
 
     try:
         while time.time() < time_end:
@@ -100,9 +91,10 @@ def main(filename: str, seconds: int = 36000) -> None:
 
     except Exception as e:
         print(f"Exception occurred in main loop: {e}")
+        loop = False
 
     except KeyboardInterrupt:
-        pass
+        loop = False
 
     print("Closing socket and exporting data...")
 
@@ -111,6 +103,12 @@ def main(filename: str, seconds: int = 36000) -> None:
 
     print("Done.")
 
+    return loop
+
 
 if __name__ == "__main__":
-    main('raw_data')
+    while True:
+        loop = main('raw_data')
+        if not loop:
+            break
+        time.sleep(5)
