@@ -111,4 +111,4 @@ if __name__ == "__main__":
         loop = main('raw_data')
         if not loop:
             break
-        time.sleep(5)
+        time.sleep(10)
