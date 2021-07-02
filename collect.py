@@ -57,7 +57,7 @@ def main(filename: str, seconds: int = 900) -> None:
     row_template = {"sent": '', "game_name": '', "title": '', "user": '', "message": ''}
     
     time_end = time.time() + seconds
-    loop = True
+    errstate = False
 
     try:
         while time.time() < time_end:
@@ -91,10 +91,10 @@ def main(filename: str, seconds: int = 900) -> None:
 
     except Exception as e:
         print(f"Exception occurred in main loop: {e}")
-        loop = False
+        errstate = True
 
     except KeyboardInterrupt:
-        loop = False
+        errstate = True
 
     print("Closing socket and exporting data...")
 
@@ -103,12 +103,12 @@ def main(filename: str, seconds: int = 900) -> None:
 
     print("Done.")
 
-    return loop
+    return errstate
 
 
 if __name__ == "__main__":
     while True:
-        loop = main('raw_data')
-        if not loop:
+        errstate = main('raw_data')
+        if errstate:
             break
         time.sleep(15)
