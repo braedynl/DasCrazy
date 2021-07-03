@@ -28,7 +28,7 @@ SEARCH_PATTERN = re.compile(f":(.*)!.* PRIVMSG #{BROADCASTER_LOGIN} :(.*)\r\n")
 
 def irc_connect() -> socket:
 
-    for timeout in (2, 4, 8, 16):
+    for timeout in (2, 4, 8, 16, -1):
         sock = socket()
         sock.connect((SERVER, PORT))
 
@@ -39,15 +39,15 @@ def irc_connect() -> socket:
         resp = sock.recv(1024).decode("utf-8", errors='ignore')
 
         if resp.startswith(f":tmi.twitch.tv 001 {PERSONAL_LOGIN} :Welcome, GLHF!"):
-            print("Connection to Twitch IRC successful, entering main loop...")
-            print("Use CTRL + C to stop at anytime\n--")
+            print(f"[{datetime.now()}] Connection to Twitch IRC successful, entering main loop...")
+            print(f"[{datetime.now()}] Use CTRL + C to stop at anytime\n--")
             return sock
 
-        print("Twitch IRC login failed, attempting restart...")
+        print(f"[{datetime.now()}] Twitch IRC login failed, attempting restart...")
         sock.close()
 
-        if timeout == 16:
-            raise RuntimeError("Could not connect to Twitch IRC")
+        if timeout == -1:
+            raise RuntimeError(f"[{datetime.now()}] Could not connect to Twitch IRC")
 
         time.sleep(timeout)
 
@@ -65,7 +65,7 @@ def fetch_metadata() -> Tuple[str, str]:
 
 def collect(filename: str, start: str, stop: str, format: str = "%m/%d/%Y %I:%M %p %z", refresh_every: float = 15) -> None:
 
-    def collect_loop(delta: float) -> bool:
+    def collect_helper(delta: float) -> bool:
         sock = irc_connect()
         game_name, title = fetch_metadata()
 
@@ -80,7 +80,7 @@ def collect(filename: str, start: str, stop: str, format: str = "%m/%d/%Y %I:%M 
                 resp = sock.recv(2048).decode("utf-8", errors='ignore')
 
                 # Using stdout.write instead of print because it's sliiiightly faster
-                sys.stdout.write(resp)
+                # sys.stdout.write(resp)
 
                 if resp.startswith("PING"):
                     sock.send("PONG\n".encode("utf-8"))
@@ -108,32 +108,31 @@ def collect(filename: str, start: str, stop: str, format: str = "%m/%d/%Y %I:%M 
         except KeyboardInterrupt:
             errstate = True
 
-        print("Closing socket and exporting data...")
+        print(f"[{datetime.now()}] Closing socket and exporting data...")
 
         sock.close()
         df.to_csv(f'data/{filename}.csv', index=False)
 
-        print("Done.")
+        print(f"[{datetime.now()}] Done.")
 
         return errstate
 
     if start is not None:
-        ts_start = datetime.strptime(start, format).timestamp()
-        time.sleep(ts_start - time.time())
+        sleep_time = datetime.strptime(start, format).timestamp() - time.time()
+        print(f"[{datetime.now()}] Starting collection in {sleep_time} seconds...")
+        time.sleep(sleep_time)
 
     ts_end = datetime.strptime(stop, format).timestamp()
 
     while time.time() < ts_end:
-        if collect_loop(delta=refresh_every * 60):
+        if collect_helper(delta=refresh_every * 60):
             break
         time.sleep(20)
 
 
 if __name__ == "__main__":
-    now = datetime.now()
-    utc_offset = "-0400"
-
-    start = f"{now.month:02d}/{now.day:02d}/{now.year} 08:34 PM {utc_offset}"
-    stop  = f"{now.month:02d}/{now.day:02d}/{now.year} 11:59 PM {utc_offset}"
+    d = datetime.now()
+    start = f"{d.month:02d}/{d.day:02d}/{d.year} 02:00 PM -0400"
+    stop  = f"{d.month:02d}/{d.day:02d}/{d.year} 11:59 PM -0400"
 
     collect('raw_data', None, stop)
