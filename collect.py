@@ -1,6 +1,7 @@
 import re
 import sys
 import time
+import warnings
 from datetime import datetime
 from socket import socket
 from typing import Tuple
@@ -25,90 +26,114 @@ REQUEST_HEADERS = {"Client-Id": CLIENT_ID, "Authorization": f"Bearer {BEARER_TOK
 SEARCH_PATTERN = re.compile(f":(.*)!.* PRIVMSG #{BROADCASTER_LOGIN} :(.*)\r\n")
 
 
+def irc_connect() -> socket:
+
+    for timeout in (2, 4, 8, 16):
+        sock = socket()
+        sock.connect((SERVER, PORT))
+
+        sock.send(f"PASS oauth:{IRC_TOKEN}\n".encode("utf-8"))
+        sock.send(f"NICK {PERSONAL_LOGIN}\n".encode("utf-8"))
+        sock.send(f"JOIN #{BROADCASTER_LOGIN}\n".encode("utf-8"))
+
+        resp = sock.recv(1024).decode("utf-8", errors='ignore')
+
+        if resp.startswith(f":tmi.twitch.tv 001 {PERSONAL_LOGIN} :Welcome, GLHF!"):
+            print("Connection to Twitch IRC successful, entering main loop...")
+            print("Use CTRL + C to stop at anytime\n--")
+            return sock
+
+        print("Twitch IRC login failed, attempting restart...")
+        sock.close()
+
+        if timeout == 16:
+            raise RuntimeError("Could not connect to Twitch IRC")
+
+        time.sleep(timeout)
+
+
 def fetch_metadata() -> Tuple[str, str]:
-    resp = requests.get(REQUEST_URL, headers=REQUEST_HEADERS).json()
-    data = resp['data'][0]
-    game_name = data['game_name']
-    title = data['title']
+    resp = requests.get(REQUEST_URL, headers=REQUEST_HEADERS)
 
-    return game_name, title
+    if resp.status_code == 200:
+        metadata = resp.json()['data'][0]
+        return metadata['game_name'], metadata['title']
+
+    warnings.warn(f"Metadata fetch request unsuccessful, response: {resp}")
+    return '', ''
 
 
-def main(filename: str, seconds: int = 900) -> None:
-    sock = socket()
-    sock.connect((SERVER, PORT))
+def collect(filename: str, start: str, stop: str, format: str = "%m/%d/%Y %I:%M %p %z", refresh_every: float = 15) -> None:
 
-    sock.send(f"PASS oauth:{IRC_TOKEN}\n".encode("utf-8"))
-    sock.send(f"NICK {PERSONAL_LOGIN}\n".encode("utf-8"))
-    sock.send(f"JOIN #{BROADCASTER_LOGIN}\n".encode("utf-8"))
+    def collect_loop(delta: float) -> bool:
+        sock = irc_connect()
+        game_name, title = fetch_metadata()
 
-    resp = sock.recv(2048).decode("utf-8", errors='ignore')
+        df = pd.read_csv(f'data/{filename}.csv')
+        row_template = {"sent": '', "game_name": '', "title": '', "user": '', "message": ''}
 
-    if not resp.startswith(f":tmi.twitch.tv 001 {PERSONAL_LOGIN} :Welcome, GLHF!"):
-        resp = resp.replace('\n', '').replace('\r', '')
-        raise RuntimeError(f"Connection to Twitch IRC failed, response: {resp}")
+        errstate = False
+        time_end = time.time() + delta
 
-    print("Connection to Twitch IRC successful, entering main loop...")
-    print("Use CTRL + C to stop at anytime\n--")
+        try:
+            while time.time() < time_end:
+                resp = sock.recv(2048).decode("utf-8", errors='ignore')
 
-    game_name, title = fetch_metadata()
+                # Using stdout.write instead of print because it's sliiiightly faster
+                sys.stdout.write(resp)
 
-    df = pd.read_csv(f'data/{filename}.csv')
-    row_template = {"sent": '', "game_name": '', "title": '', "user": '', "message": ''}
-    
-    time_end = time.time() + seconds
-    errstate = False
+                if resp.startswith("PING"):
+                    sock.send("PONG\n".encode("utf-8"))
+                    sys.stdout.write(f"[{datetime.now()}] PING\n")
+                    continue
 
-    try:
-        while time.time() < time_end:
-            resp = sock.recv(2048).decode("utf-8", errors='ignore')
+                groups = SEARCH_PATTERN.findall(resp)
 
-            # Using stdout.write instead of print because it's sliiiightly faster
-            sys.stdout.write(resp)
+                for user, message in groups:
 
-            if resp.startswith("PING"):
-                sock.send("PONG\n".encode("utf-8"))
-                sys.stdout.write(f"[{datetime.now()}] PING\n")
-                continue
+                    if "peepoHas" in message:
+                        sent = datetime.now()
 
-            groups = SEARCH_PATTERN.findall(resp)
+                        # Declaring a dictionary and setting its values later is faster than
+                        # creating a dictionary with initial values
+                        row_template["sent"] = sent
+                        row_template["game_name"] = game_name
+                        row_template["title"] = title
+                        row_template["user"] = user
+                        row_template["message"] = message
 
-            for user, message in groups:
+                        df = df.append(row_template, ignore_index=True)
+                        sys.stdout.write(f"[{sent}] {user}: {message}\n")
 
-                if "peepoHas" in message:
-                    sent = datetime.now()
+        except KeyboardInterrupt:
+            errstate = True
 
-                    # Declaring a dictionary and setting its values later is faster than
-                    # creating a dictionary with initial values
-                    row_template["sent"] = sent
-                    row_template["game_name"] = game_name
-                    row_template["title"] = title
-                    row_template["user"] = user
-                    row_template["message"] = message
+        print("Closing socket and exporting data...")
 
-                    df = df.append(row_template, ignore_index=True)
-                    sys.stdout.write(f"[{sent}] {user}: {message}\n")
+        sock.close()
+        df.to_csv(f'data/{filename}.csv', index=False)
 
-    except Exception as e:
-        print(f"Exception occurred in main loop: {e}")
-        errstate = True
+        print("Done.")
 
-    except KeyboardInterrupt:
-        errstate = True
+        return errstate
 
-    print("Closing socket and exporting data...")
+    if start is not None:
+        ts_start = datetime.strptime(start, format).timestamp()
+        time.sleep(ts_start - time.time())
 
-    sock.close()
-    df.to_csv(f'data/{filename}.csv', index=False)
+    ts_end = datetime.strptime(stop, format).timestamp()
 
-    print("Done.")
-
-    return errstate
+    while time.time() < ts_end:
+        if collect_loop(delta=refresh_every * 60):
+            break
+        time.sleep(20)
 
 
 if __name__ == "__main__":
-    while True:
-        errstate = main('raw_data')
-        if errstate:
-            break
-        time.sleep(15)
+    now = datetime.now()
+    utc_offset = "-0400"
+
+    start = f"{now.month:02d}/{now.day:02d}/{now.year} 08:34 PM {utc_offset}"
+    stop  = f"{now.month:02d}/{now.day:02d}/{now.year} 11:59 PM {utc_offset}"
+
+    collect('raw_data', None, stop)
