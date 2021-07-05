@@ -23,3 +23,11 @@ In rare circumstances, there have been cases where users would post a message co
 Python is a slow language, and its `socket` library is even slower. I was originally planning on doing it in C because of that, but I wasn't feeling up to the task of dealing with stupid C crap when I wrote the program.
 
 Python's slowness is the reason for the blanket search. Two searches (one for both "peepoHas" and "crazy") and a transformation (lowercasing all letters) would have to occur between socket `recv()` calls, which could result in loss of data if not fast enough. The lowercasing has to be done, since many users would type "CRAZY" or some other variation of the casing. "peepoHas" can only be written one way, unless the user makes a typo. Thus, a search for "peepoHas" alone was the best option, with a second pass for "crazy" later.
+
+> How did you connect to the Twitch chat from Python?
+
+[Twitch has an API, documentation can be found here](https://dev.twitch.tv/docs/). They offer an IRC interface to the Twitch chat, [more info can be found here](https://dev.twitch.tv/docs/irc/guide) (completely free!).
+
+> Your code references a `keys.py` script, but I don't see that anywhere?
+
+That was a file that contained my Twitch authentication keys, which I can't publish for obvious reasons. If you want to run my collection script, [you'll have to request your own keys](https://dev.twitch.tv/docs/authentication) and re-create that file.
