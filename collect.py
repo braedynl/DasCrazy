@@ -6,10 +6,10 @@ from datetime import datetime
 from socket import socket
 from typing import Annotated, Union
 
-import pandas as pd
 import requests
 
 from keys import BEARER_TOKEN, CLIENT_ID, IRC_TOKEN
+from util import load
 
 # User information
 PERSONAL_LOGIN = "braedynl_"
@@ -76,11 +76,11 @@ def fetch_metadata() -> tuple[str, str]:
 
 def collect(filename: str, start: Union[str, None], stop: str, format: str, refresh_every: Annotated[float, "minutes"] = 15) -> None:
 
-    def collect_helper(delta: float) -> int:
+    def collect_helper(delta: Annotated[float, "seconds"]) -> int:
         sock = irc_connect()
         game_name, title = fetch_metadata()
 
-        df = pd.read_csv(f"data/{filename}.csv")
+        df = load(filename)
         row_template = {
             "sent": "",
             "game_name": "",
