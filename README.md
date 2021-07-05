@@ -26,7 +26,7 @@ Python's slowness is the reason for the blanket search. Two searches (one for bo
 
 > How did you connect to the Twitch chat from Python?
 
-[Twitch has an API, documentation can be found here](https://dev.twitch.tv/docs/). They offer an IRC interface to the Twitch chat, [more info can be found here](https://dev.twitch.tv/docs/irc/guide) (completely free!).
+[Twitch has an API, documentation can be found here](https://dev.twitch.tv/docs/). They offer an IRC interface to the Twitch chat, [more info can be found here](https://dev.twitch.tv/docs/irc/guide) (completely free, requires a Twitch account).
 
 > Your code references a `keys.py` script, but I don't see that anywhere?
 
