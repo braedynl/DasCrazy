@@ -188,4 +188,4 @@ if __name__ == "__main__":
     # Sometimes I gotta hit the bed before Hasan ends stream, so I let
     # the script run and shutdown my computer afterwards
     if state == 0:
-        os.system("shutdown -s")
+        os.system("shutdown -s")  # Yes, I run Windows. I do not care if you think Linux is better
