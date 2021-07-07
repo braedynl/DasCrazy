@@ -65,7 +65,7 @@ def irc_connect() -> socket:
         socket.socket: Twitch chat IRC socket
 
     Raises:
-        RuntimeError: If connection fails after four attempts
+        RuntimeError: If connection fails after five attempts
     """
     for timeout in (2, 4, 8, 16, -1):
         irc = socket()
