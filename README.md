@@ -1,6 +1,6 @@
 # DasCrazy
 
-A statistical analysis of Hasan Piker's obsession with the term, "that's crazy". [See the project on GitHub](https://github.com/braedynl/DasCrazy).
+A statistical analysis of Hasan Piker's obsession with the term, "that's crazy".
 
 ### Collection Methodology
 

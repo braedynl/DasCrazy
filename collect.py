@@ -1,6 +1,5 @@
 import os
 import re
-import sys
 import time
 import warnings
 from datetime import datetime
@@ -10,7 +9,7 @@ from typing import Annotated, Any
 import requests
 
 from keys import BEARER_TOKEN, CLIENT_ID, IRC_TOKEN
-from util import load
+from util import load, log
 
 # User information
 PERSONAL_LOGIN = "braedynl_"
@@ -26,13 +25,6 @@ REQUEST_HEADERS = {"Client-Id": CLIENT_ID, "Authorization": f"Bearer {BEARER_TOK
 SEARCH_PATTERN = re.compile(f":(.*)!.* PRIVMSG #{BROADCASTER_LOGIN} :(.*)\r\n")
 
 # TODO: use logging module?
-
-
-def log(msg: str) -> None:
-    """
-    Prints a message to stdout with a timestamp
-    """
-    sys.stdout.write(f"[{datetime.now()}] {msg}\n")
 
 
 def fetch_metadata() -> tuple[bool, dict[str, Any]]:
@@ -191,7 +183,9 @@ def collect(filename: str, refresh_every: Annotated[float, "minutes"] = 15) -> i
 
 
 if __name__ == "__main__":
-    state = collect("raw_data")
+    state = collect("raw")
 
+    # Sometimes I gotta hit the bed before Hasan ends stream, so I let
+    # the script run and shutdown my computer afterwards
     if state == 0:
         os.system("shutdown -s")

@@ -1,4 +1,3 @@
-import math
 from collections import Counter
 from datetime import date, timedelta
 from typing import Optional
@@ -45,9 +44,9 @@ def dascrazy_heatmap(df: pd.DataFrame) -> None:
     start, stop = min(counts.keys()), max(counts.keys())
 
     dstart = start - timedelta(start.toordinal() % 7)
-    dstop = (stop - timedelta(stop.toordinal() % 7)) + timedelta(6)
+    dstop = (stop - timedelta(stop.toordinal() % 7)) + timedelta(7)
 
-    n_weeks = math.ceil((dstop - dstart).days / 7)
+    n_weeks = (dstop - dstart).days // 7
     dates = np.full((7, n_weeks), fill_value="", dtype=object)
     freqs = np.zeros((7, n_weeks), dtype=int)
 
@@ -81,7 +80,7 @@ def dascrazy_heatmap(df: pd.DataFrame) -> None:
 
 
 def main():
-    df = load("clean_data")
+    df = load("clean")
 
     dascrazy_heatmap(df)
     # user_freq(df)
