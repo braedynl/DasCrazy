@@ -1,3 +1,4 @@
+import os
 import re
 import sys
 import time
@@ -19,20 +20,31 @@ BROADCASTER_LOGIN = "hasanabi"
 SERVER = "irc.chat.twitch.tv"
 PORT = 6667
 REQUEST_URL = f"https://api.twitch.tv/helix/streams?user_login={BROADCASTER_LOGIN}"
-REQUEST_HEADERS = {
-    "Client-Id": CLIENT_ID,
-    "Authorization": f"Bearer {BEARER_TOKEN}"
-}
+REQUEST_HEADERS = {"Client-Id": CLIENT_ID, "Authorization": f"Bearer {BEARER_TOKEN}"}
 
 # IRC response pattern
 SEARCH_PATTERN = re.compile(f":(.*)!.* PRIVMSG #{BROADCASTER_LOGIN} :(.*)\r\n")
 
 
 def log(msg: str) -> None:
+    """
+    Prints a message to stdout with a timestamp
+    """
     sys.stdout.write(f"[{datetime.now()}] {msg}\n")
 
 
 def fetch_metadata() -> tuple[bool, dict[str, Any]]:
+    """
+    Fetch Twitch stream metadata
+
+    Returns:
+        tuple[bool, dict[str, Any]]: Whether the user is live, and the
+            stream metadata respectively.
+
+    Notes:
+        Uses the "Get Streams" endpoint, see API documentation for
+        more details: https://dev.twitch.tv/docs/api/reference#get-streams
+    """
     resp = requests.get(REQUEST_URL, headers=REQUEST_HEADERS).json()
 
     if "data" in resp:
@@ -46,7 +58,15 @@ def fetch_metadata() -> tuple[bool, dict[str, Any]]:
 
 
 def irc_connect() -> socket:
+    """
+    Connect to Twitch chat IRC
 
+    Returns:
+        socket.socket: Twitch chat IRC socket
+
+    Raises:
+        RuntimeError: If connection fails after four attempts
+    """
     for timeout in (2, 4, 8, 16, -1):
         irc = socket()
 
@@ -78,7 +98,19 @@ def irc_connect() -> socket:
 
 
 def collect(filename: str, refresh_every: Annotated[float, "minutes"] = 15) -> int:
+    """
+    Collect messages from Twitch chat containing the text, `"peepoHas"`.
 
+    Runs from stream start to stream end by periodically checking the user's
+    live status. Begins collection instantly if stream is live, otherwise waits.
+
+    Args:
+        filename: Name of the raw data file
+        refresh_every: Time span before periodic login refresh
+
+    Returns:
+        int: -1 if `KeyboardInterrupt`, 0 if stream went offline
+    """
     def collect_helper(irc: socket, metadata: dict[str, Any]) -> int:
         df = load(filename)
         row_template = {
@@ -151,6 +183,7 @@ def collect(filename: str, refresh_every: Annotated[float, "minutes"] = 15) -> i
 
 
 if __name__ == "__main__":
-    collect("raw_data")
+    state = collect("raw_data")
 
-    # TODO: have option to shutdown computer
+    if state == 0:
+        os.system("shutdown -s")
