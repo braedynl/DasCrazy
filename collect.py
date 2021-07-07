@@ -25,6 +25,8 @@ REQUEST_HEADERS = {"Client-Id": CLIENT_ID, "Authorization": f"Bearer {BEARER_TOK
 # IRC response pattern
 SEARCH_PATTERN = re.compile(f":(.*)!.* PRIVMSG #{BROADCASTER_LOGIN} :(.*)\r\n")
 
+# TODO: use logging module?
+
 
 def log(msg: str) -> None:
     """
@@ -45,6 +47,7 @@ def fetch_metadata() -> tuple[bool, dict[str, Any]]:
         Uses the "Get Streams" endpoint, see API documentation for
         more details: https://dev.twitch.tv/docs/api/reference#get-streams
     """
+
     resp = requests.get(REQUEST_URL, headers=REQUEST_HEADERS).json()
 
     if "data" in resp:
@@ -67,6 +70,7 @@ def irc_connect() -> socket:
     Raises:
         RuntimeError: If connection fails after five attempts
     """
+
     for timeout in (2, 4, 8, 16, -1):
         irc = socket()
 
@@ -111,6 +115,7 @@ def collect(filename: str, refresh_every: Annotated[float, "minutes"] = 15) -> i
     Returns:
         int: -1 if `KeyboardInterrupt`, 0 if stream went offline
     """
+
     def collect_helper(irc: socket, metadata: dict[str, Any]) -> int:
         df = load(filename)
         row_template = {
@@ -159,13 +164,16 @@ def collect(filename: str, refresh_every: Annotated[float, "minutes"] = 15) -> i
 
         return state
 
+    log("Waiting for user to go live...")
     is_live, metadata = False, {}
     while True:
         is_live, metadata = fetch_metadata()
         if is_live:
             break
+        log("Live status checked")
         time.sleep(900)
 
+    log("User is live, beginning collection...")
     while True:
         irc = irc_connect()
         state = collect_helper(irc, metadata)
