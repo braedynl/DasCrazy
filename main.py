@@ -20,8 +20,18 @@ FIG_HEIGHT = 720 / DPI
 DAYS = ("SUN", "MON", "TUE", "WED", "THU", "FRI", "SAT")
 
 
+def init_plot(nrows: int = 1, ncols: int = 1):
+    return plt.subplots(
+        nrows=nrows,
+        ncols=ncols,
+        figsize=(FIG_WIDTH, FIG_HEIGHT),
+        tight_layout=True,
+        dpi=DPI
+    )
+
+
 def user_freq(df: pd.DataFrame, title: Optional[str] = None, xlabel: Optional[str] = None, ylabel: Optional[str] = None, top: int = 25) -> None:
-    fig, ax = plt.subplots(figsize=(FIG_WIDTH, FIG_HEIGHT), tight_layout=True, dpi=DPI)
+    fig, ax = init_plot()
 
     freqs = df["user"].value_counts().drop("braedynl_")[:top]
     y_pos = np.arange(len(freqs) - 1, -1, -1)
@@ -51,19 +61,19 @@ def dascrazy_heatmap(df: pd.DataFrame) -> None:
     freqs = np.zeros((7, n_weeks), dtype=int)
 
     d = dstart
-    for i in range(n_weeks):
-        for j in range(7):
-            dates[j][i] = d.strftime("%m/%d")
-            freqs[j][i] = counts[d]
+    for col in range(n_weeks):
+        for row in range(7):
+            dates[row][col] = d.strftime("%m/%d")
+            freqs[row][col] = counts[d]
             d += timedelta(1)
 
-    fig, ax = plt.subplots(figsize=(FIG_WIDTH, FIG_HEIGHT), tight_layout=True, dpi=DPI)
+    fig, ax = init_plot()
 
     im = ax.imshow(freqs)
 
-    for i in range(7):
-        for j in range(n_weeks):
-            ax.text(j, i, dates[i][j], ha="center", va="center", color="w")
+    for row in range(7):
+        for col in range(n_weeks):
+            ax.text(col, row, dates[row][col], ha="center", va="center", color="w")
 
     cbar = ax.figure.colorbar(im, ax=ax, ticks=[0, 10, 20, 30, 40])
     cbar.ax.set_yticklabels(["No Data", "10", "20", "30", "40"])
