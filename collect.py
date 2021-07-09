@@ -4,7 +4,7 @@ import time
 import warnings
 from datetime import datetime
 from socket import socket
-from typing import Annotated, Any
+from typing import Annotated, Any, TypeVar
 
 import requests
 
@@ -24,7 +24,7 @@ REQUEST_HEADERS = {"Client-Id": CLIENT_ID, "Authorization": f"Bearer {BEARER_TOK
 # IRC response pattern
 SEARCH_PATTERN = re.compile(f":(.*)!.* PRIVMSG #{BROADCASTER_LOGIN} :(.*)\r\n")
 
-# TODO: use logging module?
+Minutes = TypeVar("Minutes")
 
 
 def fetch_metadata() -> tuple[bool, dict[str, Any]]:
@@ -93,7 +93,7 @@ def irc_connect() -> socket:
         time.sleep(timeout)
 
 
-def collect(filename: str, refresh_every: Annotated[float, "minutes"] = 15) -> int:
+def collect(filename: str, refresh_every: Annotated[float, Minutes] = 15) -> int:
     """
     Collect messages from Twitch chat containing the text, `"peepoHas"`.
 
@@ -102,15 +102,15 @@ def collect(filename: str, refresh_every: Annotated[float, "minutes"] = 15) -> i
 
     Args:
         filename: Name of the raw data file
-        refresh_every: Time span before periodic login refresh
+        refresh_every: Time span before periodic login refresh in minutes
 
     Returns:
-        int: -1 if `KeyboardInterrupt`, 0 if stream went offline
+        int: -1 if `KeyboardInterrupt` was issued, 0 if stream went offline
     """
 
     def collect_helper(irc: socket, metadata: dict[str, Any]) -> int:
         df = load(filename)
-        row_template = {
+        row_template = {  # TODO: is using a Series faster than using a dict?
             "sent": "",
             "game_name": "",
             "title": "",
@@ -155,6 +155,8 @@ def collect(filename: str, refresh_every: Annotated[float, "minutes"] = 15) -> i
         log("Done.")
 
         return state
+
+    # TODO: better logging?
 
     log("Waiting for user to go live...")
     is_live, metadata = False, {}

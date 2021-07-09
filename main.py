@@ -2,6 +2,7 @@ from collections import Counter
 from datetime import date, timedelta
 from typing import Optional
 
+import matplotlib as mpl
 import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
@@ -20,7 +21,7 @@ FIG_HEIGHT = 720 / DPI
 DAYS = ("SUN", "MON", "TUE", "WED", "THU", "FRI", "SAT")
 
 
-def init_plot(nrows: int = 1, ncols: int = 1):
+def init_plot(nrows: int = 1, ncols: int = 1) -> tuple[mpl.figure.Figure, mpl.axes.Axes]:
     return plt.subplots(
         nrows=nrows,
         ncols=ncols,
@@ -30,7 +31,7 @@ def init_plot(nrows: int = 1, ncols: int = 1):
     )
 
 
-def user_freq(df: pd.DataFrame, title: Optional[str] = None, xlabel: Optional[str] = None, ylabel: Optional[str] = None, top: int = 25) -> None:
+def user_freq(df: pd.DataFrame, top: int = 25, title: Optional[str] = None, xlabel: Optional[str] = None, ylabel: Optional[str] = None) -> None:
     fig, ax = init_plot()
 
     freqs = df["user"].value_counts().drop("braedynl_")[:top]
@@ -92,7 +93,7 @@ def dascrazy_heatmap(df: pd.DataFrame) -> None:
 def main():
     df = load("clean")
 
-    dascrazy_heatmap(df)
+    # dascrazy_heatmap(df)
     # user_freq(df)
 
 
