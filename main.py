@@ -55,7 +55,7 @@ def dascrazy_heatmap(df: pd.DataFrame) -> None:
     start, stop = min(counts.keys()), max(counts.keys())
 
     dstart = start - timedelta(start.toordinal() % 7)
-    dstop = (stop - timedelta(stop.toordinal() % 7)) + timedelta(7)
+    dstop = stop + timedelta(7 - stop.toordinal() % 7)
 
     n_weeks = (dstop - dstart).days // 7
     dates = np.full((7, n_weeks), fill_value="", dtype=object)
