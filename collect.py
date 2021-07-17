@@ -32,8 +32,7 @@ def fetch_metadata() -> tuple[bool, dict[str, Any]]:
     Fetch Twitch stream metadata
 
     Returns:
-        tuple[bool, dict[str, Any]]: Whether the user is live, and the
-            stream metadata respectively.
+        Whether the user is live, and the stream metadata respectively.
 
     Notes:
         Uses the "Get Streams" endpoint, see API documentation for
@@ -57,7 +56,7 @@ def irc_connect() -> socket:
     Connect to Twitch chat IRC
 
     Returns:
-        socket.socket: Twitch chat IRC socket
+        Twitch chat IRC socket
 
     Raises:
         RuntimeError: If connection fails after five attempts
@@ -105,7 +104,7 @@ def collect(filename: str, refresh_every: Annotated[float, Minutes] = 15) -> int
         refresh_every: Time span before periodic login refresh in minutes
 
     Returns:
-        int: -1 if `KeyboardInterrupt` was issued, 0 if stream went offline
+        -1 if a `KeyboardInterrupt` was issued, 0 if stream went offline
     """
 
     def collect_helper(irc: socket, metadata: dict[str, Any]) -> int:
