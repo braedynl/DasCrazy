@@ -121,10 +121,10 @@ def collect(filename: str, refresh_every: Annotated[float, Minutes] = 15) -> int
 
         try:
             while time.time() < time_end:
-                resp = irc.recv(2048).decode("utf-8", errors="ignore")
+                resp = irc.recv(4096).decode("utf-8", errors="ignore")
 
                 if resp.startswith("PING"):
-                    irc.send("PONG\n".encode("utf-8"))
+                    irc.send("PONG\r\n".encode("utf-8"))
                     log("PING")
                     continue
 
