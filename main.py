@@ -1,57 +1,80 @@
 from collections import Counter
 from datetime import date, timedelta
-from typing import Optional
+from typing import Annotated, Optional, Sequence, TypeVar
 
 import matplotlib as mpl
 import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
 import seaborn
+from matplotlib.colors import ListedColormap
+from scipy.stats import poisson
 
 from util import load
 
 seaborn.set()
 
 # Figure size configuration
+# Used to convert matplotlib figsize dimensions to pixels
 DPI = 144
-FIG_WIDTH = 960 / DPI
-FIG_HEIGHT = 720 / DPI
+FIG_WIDTH = 1920 / DPI
+FIG_HEIGHT = 1080 / DPI
 
-# Heatmap constants
+# Average das crazy moments per second (see /data/clean_worksheet.xlsx to see how this value was calculated)
+MOMENT_RATE = 0.000857682
+
+# Heatmap day abbreviations
 DAYS = ("SUN", "MON", "TUE", "WED", "THU", "FRI", "SAT")
 
+# Custom colormap for user mentions plot
+CMAP_BIFLAG = ListedColormap(mpl.cm.plasma(np.linspace(0.0, 0.5, 256)))
 
-def init_plot(nrows: int = 1, ncols: int = 1) -> tuple[mpl.figure.Figure, mpl.axes.Axes]:
-    return plt.subplots(
-        nrows=nrows,
-        ncols=ncols,
-        figsize=(FIG_WIDTH, FIG_HEIGHT),
-        tight_layout=True,
-        dpi=DPI
-    )
+# Type vars
+Hours = TypeVar("Hours")
 
 
-def user_freq(df: pd.DataFrame, top: int = 25, title: Optional[str] = None, xlabel: Optional[str] = None, ylabel: Optional[str] = None) -> None:
+def init_plot() -> tuple[mpl.figure.Figure, mpl.axes.Axes]:
+    """
+    Initialize a matplotlib figure and axes
+
+    Returns:
+        A matplotlib figure and axes instance, respectively
+    """
+    return plt.subplots(figsize=(FIG_WIDTH, FIG_HEIGHT), tight_layout=True, dpi=DPI)
+
+
+def user_mentions(df: pd.DataFrame, top: int = 25) -> None:
+    """
+    Plots a frequency chart of the top peepoHas users
+
+    Args:
+        df: Chat-log dataset
+        top: Top number of chat users to plot
+    """
     fig, ax = init_plot()
 
     freqs = df["user"].value_counts().drop("braedynl_")[:top]
-    y_pos = np.arange(len(freqs) - 1, -1, -1)
+    y_pos = np.arange(top - 1, -1, -1)
 
-    ax.barh(y_pos, freqs.values)
+    ax.barh(y_pos, freqs.values, color=np.flipud(CMAP_BIFLAG(np.linspace(0, 1, 25))))
     ax.set_yticks(y_pos)
     ax.set_yticklabels(freqs.index)
 
-    ax.set_title(title)
-    ax.set_xlabel(xlabel)
-    ax.set_ylabel(ylabel)
+    ax.set_title(f"Top {top} 'peepoHas' Users")
+    ax.set_xlabel("Mentions")
+    ax.set_ylabel("User")
 
     plt.show()
 
 
-def dascrazy_heatmap(df: pd.DataFrame) -> None:
-    counts = Counter(
-        date(ts.year, ts.month, ts.day) for _, ts in df["sent"].iteritems()
-    )
+def das_crazy_heatmap(df: pd.DataFrame) -> None:
+    """
+    Plots a calendar heatmap of das crazy mentions on a daily basis
+
+    Args:
+        df: Chat-log dataset
+    """
+    counts = Counter(date(ts.year, ts.month, ts.day) for _, ts in df["sent"].iteritems())
     start, stop = min(counts.keys()), max(counts.keys())
 
     dstart = start - timedelta(start.toordinal() % 7)
@@ -76,8 +99,9 @@ def dascrazy_heatmap(df: pd.DataFrame) -> None:
         for col in range(n_weeks):
             ax.text(col, row, dates[row][col], ha="center", va="center", color="w")
 
-    cbar = ax.figure.colorbar(im, ax=ax, ticks=[0, 10, 20, 30, 40])
-    cbar.ax.set_yticklabels(["No Data", "10", "20", "30", "40"])
+    ticks = [0, 10, 20, 30, 40, 50]
+    cbar = ax.figure.colorbar(im, ax=ax, ticks=ticks)
+    cbar.ax.set_yticklabels(["No Data"] + [str(n) for n in ticks[1:]])
     cbar.ax.set_ylabel("Das Crazy Moments", rotation=-90, va="bottom")
 
     ax.set_title("Das Crazy Moment Frequency")
@@ -90,11 +114,110 @@ def dascrazy_heatmap(df: pd.DataFrame) -> None:
     plt.show()
 
 
-def main():
-    df = load("clean")
+def das_crazy_distribution(
+    poisson_func,
+    time_range: Sequence[Annotated[float, Hours]],
+    moment_range: Sequence[int],
+    title: Optional[str] = None,
+    xlabel: Optional[str] = None,
+    ylabel: Optional[str] = None,
+) -> mpl.axes.Axes:
+    """
+    Plot a das crazy mentions Poisson distribution function
 
-    # dascrazy_heatmap(df)
-    # user_freq(df)
+    Args:
+        poisson_func: Poisson distribution function that accepts an event range and a mu
+        time_range: A range of stream time hours
+        moment_range: A range of das crazy moment counts
+        title: Plot title
+        xlabel: Plot x label
+        ylabel: Plot y label
+    """
+    fig, ax = init_plot()
+
+    for time in time_range:
+        mu = MOMENT_RATE * (time * 3600)
+        prob_range = poisson_func(moment_range, mu)
+        ax.plot(moment_range, prob_range, "o--", label=f"{time}", alpha=0.9)
+
+    ax.set_title(title)
+    ax.set_xlabel(xlabel)
+    ax.set_ylabel(ylabel)
+
+    ax.legend(title="Stream Time (hrs)")
+
+    return ax
+
+
+def das_crazy_pmf(time_range: Sequence[Annotated[float, Hours]], moment_range: Sequence[int]) -> None:
+    """
+    Plot the das crazy mentions Poisson probability mass function
+
+    Args:
+        time_range: A range of stream time hours
+        moment_range: A range of das crazy moment counts
+    """
+    ax = das_crazy_distribution(
+        poisson.pmf,
+        time_range,
+        moment_range,
+        title="Das Crazy Moment Probability Mass Function\n(the probability that Hasan says something is crazy exactly $k$ times)",
+        xlabel="Das Crazy Moments ($k$)",
+        ylabel="Probability ($P(X = k)$)",
+    )
+
+    t = time_range[3]
+    x = 12
+    y = poisson.pmf(x, MOMENT_RATE * (t * 3600))
+    ax.plot((x, x), (0, y), ":", color="k", alpha=0.9)
+    ax.plot((0, x), (y, y), ":", color="k", alpha=0.9)
+    ax.annotate(
+        f"There's an {y:.1%} chance that Hasan will say something\nis crazy exactly {x} times during a {t} hour stream",
+        (x, y),
+    )
+
+    plt.show()
+
+
+def das_crazy_cdf(time_range: Sequence[Annotated[float, Hours]], moment_range: Sequence[int]) -> None:
+    """
+    Plot the das crazy mentions Poisson cumulative distribution function
+
+    Args:
+        time_range: A range of stream time hours
+        moment_range: A range of das crazy moment counts
+    """
+    ax = das_crazy_distribution(
+        poisson.cdf,
+        time_range,
+        moment_range,
+        title="Das Crazy Moment Cumulative Distribution Function\n(the probability that Hasan says something is crazy $\leq k$ times)",
+        xlabel="Das Crazy Moments ($k$)",
+        ylabel="Probability ($P(X \leq k)$)",
+    )
+
+    t = time_range[-1]
+    x = 30
+    y = poisson.cdf(x, MOMENT_RATE * (t * 3600))
+    ax.plot((x, x), (0, y), ":", color="k", alpha=0.9)
+    ax.plot((0, x), (y, y), ":", color="k", alpha=0.9)
+    ax.annotate(
+        f"There's a {y:.1%} chance that Hasan will say something\nis crazy {x} times or less during a {t} hour stream",
+        (x, y),
+    )
+
+    plt.show()
+
+
+def main():
+    df_raw = load("raw")
+    df_clean = load("clean")
+
+    user_mentions(df_raw)
+
+    das_crazy_heatmap(df_clean)
+    das_crazy_pmf(range(1, 11), range(0, 60))
+    das_crazy_cdf(range(1, 11), range(0, 60))
 
 
 if __name__ == "__main__":
