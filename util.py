@@ -15,7 +15,7 @@ def load(filename: str) -> pd.DataFrame:
     Returns:
         Chat-log dataset
     """
-    df = pd.read_csv(f"data/{filename}.csv")
+    df = pd.read_csv(f"./data/{filename}.csv")
     df["sent"] = pd.to_datetime(df["sent"], infer_datetime_format=True)
     return df
 

@@ -1,18 +1,22 @@
 from collections import Counter
 from datetime import date, timedelta
-from typing import Annotated, Optional, Sequence, TypeVar
+from typing import Annotated, Callable, Optional, Sequence, TypeVar
 
 import matplotlib as mpl
+import matplotlib.dates as mdates
 import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
 import seaborn
-from matplotlib.colors import ListedColormap
 from scipy.stats import poisson
 
 from util import load
 
 seaborn.set()
+
+# Top 100 chat users
+with open("./data/top100_users.txt", "r") as f:
+    TOP100_USERS = {line.strip() for line in f}
 
 # Figure size configuration
 # Used to convert matplotlib figsize dimensions to pixels
@@ -27,7 +31,7 @@ MOMENT_RATE = 0.000857682
 DAYS = ("SUN", "MON", "TUE", "WED", "THU", "FRI", "SAT")
 
 # Custom colormap for user mentions plot
-CMAP_BIFLAG = ListedColormap(mpl.cm.plasma(np.linspace(0.0, 0.5, 256)))
+CMAP_BIFLAG = mpl.colors.ListedColormap(mpl.cm.plasma(np.linspace(0.0, 0.5, 256)))
 
 # Type vars
 Hours = TypeVar("Hours")
@@ -43,6 +47,32 @@ def init_plot() -> tuple[mpl.figure.Figure, mpl.axes.Axes]:
     return plt.subplots(figsize=(FIG_WIDTH, FIG_HEIGHT), tight_layout=True, dpi=DPI)
 
 
+def line_segment(ax: mpl.axes.Axes, xy1: tuple[float, float], xy2: tuple[float, float]) -> None:
+    """
+    Plot a line segment
+
+    Args:
+        ax: Axes to plot on
+        xy1: Starting coordinate
+        xy2: Ending coordinate
+    """
+    ax.plot((xy1[0], xy2[0]), (xy1[1], xy2[1]), ":", color="k", alpha=0.9)
+
+
+def trace_coordinate(ax: mpl.axes.Axes, xy: tuple[float, float]) -> None:
+    """
+    Plot line segments converging to a single coordinate
+
+    Args:
+        ax: Axes to plot on
+        xy: Coordinate to converge on
+    """
+    x, y = xy
+    line_segment(ax, (x, 0), (x, y))
+    line_segment(ax, (0, y), (x, y))
+    ax.plot(x, y, "o", color="k")
+
+
 def user_mentions(df: pd.DataFrame, top: int = 25) -> None:
     """
     Plots a frequency chart of the top peepoHas users
@@ -56,13 +86,78 @@ def user_mentions(df: pd.DataFrame, top: int = 25) -> None:
     freqs = df["user"].value_counts().drop("braedynl_")[:top]
     y_pos = np.arange(top - 1, -1, -1)
 
-    ax.barh(y_pos, freqs.values, color=np.flipud(CMAP_BIFLAG(np.linspace(0, 1, 25))))
+    ax.barh(y_pos, freqs.values, color=np.flipud(CMAP_BIFLAG(np.linspace(0, 1, top))))
     ax.set_yticks(y_pos)
     ax.set_yticklabels(freqs.index)
 
-    ax.set_title(f"Top {top} 'peepoHas' Users")
+    # Drawing a line marking the end of the top user's freq bar
+    user, x, y = freqs.index[0], freqs.values[0], y_pos[0]
+    line_segment(ax, (x, 0), (x, y))
+
+    ax.text(
+        x - 1, y / 2, f"Top peepoHas user during the analysis period\n'{user}' with ~{x} peepoHas mentions!", ha="right"
+    )
+
+    # Coloring top 100 user tick labels red
+    ticklabels = ax.get_yticklabels()
+    for ticklabel in ticklabels:
+        if ticklabel.get_text() in TOP100_USERS:
+            ticklabel.set_color("C3")
+
+    ax.set_title(
+        f"Top {top} 'peepoHas' Users\n(red username = among the top 100 users with the most messages sent in Hasan's chat)"
+    )
     ax.set_xlabel("Mentions")
     ax.set_ylabel("User")
+
+    plt.show()
+
+
+def das_crazy_timeline(df: pd.DataFrame) -> None:
+    """
+    Plots days versus time with a marker signifying every das crazy moment
+
+    Args:
+        df: Chat-log dataset
+    """
+
+    # Matplotlib doesn't allow you to make a purely time-based axis, you HAVE to pair it with a date,
+    # so there's a lot of odd workarounds that you'll see here (I just chose the Unix epoch)
+
+    ts_start = pd.Timestamp("1970-01-01 14:00:00")
+    ts_stop = pd.Timestamp("1970-01-01 23:59:59")
+
+    days = sorted(list({date(ts.year, ts.month, ts.day) for _, ts in df["sent"].iteritems()}))
+    times = pd.date_range(ts_start, ts_stop, freq="S")
+
+    occur_map = pd.DataFrame(index=times, columns=days, dtype=int).fillna(0)
+
+    for _, ts in df["sent"].iteritems():
+        time = pd.Timestamp(year=1970, month=1, day=1, hour=ts.hour, minute=ts.minute, second=ts.second)
+        day = date(year=ts.year, month=ts.month, day=ts.day)
+        occur_map.at[time, day] = 1
+
+    fig, ax = init_plot()
+
+    # ax.hlines(range(len(occur_map.columns)), ts_start, ts_stop, color="k")
+
+    for y_pos, col in enumerate(occur_map.columns, start=-1):
+        occur = occur_map[col][occur_map[col] == 1] + y_pos
+        ax.plot(occur.index, occur.values, "-o", color="k", markerfacecolor="w")
+
+    ax.set_yticks(range(len(occur_map.columns)))
+    ax.set_yticklabels(occur_map.columns)
+
+    hours = mdates.HourLocator(interval=1)
+    h_fmt = mdates.DateFormatter("%I %p")
+    ax.xaxis.set_major_locator(hours)
+    ax.xaxis.set_major_formatter(h_fmt)
+
+    ax.set_xlim((ts_start, ts_stop + timedelta(seconds=1)))
+
+    ax.set_title("Das Crazy Moment Timeline\n(each dot = Hasan said something was crazy)")
+    ax.set_xlabel("Time (Eastern)")
+    ax.set_ylabel("Date")
 
     plt.show()
 
@@ -115,7 +210,7 @@ def das_crazy_heatmap(df: pd.DataFrame) -> None:
 
 
 def das_crazy_distribution(
-    poisson_func,
+    poisson_func: Callable[[Sequence[int], float], Sequence[float]],
     time_range: Sequence[Annotated[float, Hours]],
     moment_range: Sequence[int],
     title: Optional[str] = None,
@@ -135,16 +230,18 @@ def das_crazy_distribution(
     """
     fig, ax = init_plot()
 
+    # Using the derived Poisson mu, mu = r*t, where r is the event rate and t is an interval of time
+    # in this case, r being the rate of crazy mentions and t being the length of the stream
     for time in time_range:
         mu = MOMENT_RATE * (time * 3600)
         prob_range = poisson_func(moment_range, mu)
-        ax.plot(moment_range, prob_range, "o--", label=f"{time}", alpha=0.9)
+        ax.plot(moment_range, prob_range, "o--", label=time, alpha=0.9)
 
     ax.set_title(title)
     ax.set_xlabel(xlabel)
     ax.set_ylabel(ylabel)
 
-    ax.legend(title="Stream Time (hrs)")
+    ax.legend(title="Stream Time (Hours)")
 
     return ax
 
@@ -169,11 +266,10 @@ def das_crazy_pmf(time_range: Sequence[Annotated[float, Hours]], moment_range: S
     t = time_range[3]
     x = 12
     y = poisson.pmf(x, MOMENT_RATE * (t * 3600))
-    ax.plot((x, x), (0, y), ":", color="k", alpha=0.9)
-    ax.plot((0, x), (y, y), ":", color="k", alpha=0.9)
+    trace_coordinate(ax, (x, y))
     ax.annotate(
         f"There's an {y:.1%} chance that Hasan will say something\nis crazy exactly {x} times during a {t} hour stream",
-        (x, y),
+        (x + 0.5, y),
     )
 
     plt.show()
@@ -199,11 +295,10 @@ def das_crazy_cdf(time_range: Sequence[Annotated[float, Hours]], moment_range: S
     t = time_range[-1]
     x = 30
     y = poisson.cdf(x, MOMENT_RATE * (t * 3600))
-    ax.plot((x, x), (0, y), ":", color="k", alpha=0.9)
-    ax.plot((0, x), (y, y), ":", color="k", alpha=0.9)
+    trace_coordinate(ax, (x, y))
     ax.annotate(
         f"There's a {y:.1%} chance that Hasan will say something\nis crazy {x} times or less during a {t} hour stream",
-        (x, y),
+        (x + 0.5, y),
     )
 
     plt.show()
@@ -215,6 +310,7 @@ def main():
 
     user_mentions(df_raw)
 
+    das_crazy_timeline(df_clean)
     das_crazy_heatmap(df_clean)
     das_crazy_pmf(range(1, 11), range(0, 60))
     das_crazy_cdf(range(1, 11), range(0, 60))
