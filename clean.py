@@ -11,16 +11,19 @@ def main(raw_filename: str, clean_filename: str) -> None:
     indicator_row = None
 
     for _, row in raw_data.iterrows():
-        if "crazy" in row["message"].lower():
+
+        message = row["message"].lower()
+
+        if "crazy" in message:
 
             # Filters other users messaging at (roughly) the same time, i.e., discards
             # all messages containing the word "crazy" within a 30 second interval
 
-            # The user can alternatively be myself, as my messages can often capture
-            # "das crazy" moments that are back-to-back
+            # The user can alternatively be myself, as I will notate "x2" if there were
+            # two back-to-back crazy moments (I've never witnessed more than two)
             if (
-                indicator_row is None
-                or row["user"] == "braedynl_"
+                (indicator_row is None)
+                or (row["user"] == "braedynl_" and "x2" in message)
                 or (row["sent"] - indicator_row["sent"]).total_seconds() > 30
             ):
                 indicator_row = row

@@ -25,7 +25,7 @@ FIG_WIDTH = 1920 / DPI
 FIG_HEIGHT = 1080 / DPI
 
 # Average das crazy moments per second (see /data/clean_worksheet.xlsx to see how this value was calculated)
-MOMENT_RATE = 0.000857682
+MOMENT_RATE = 0.000773559
 
 # Heatmap day abbreviations
 DAYS = ("SUN", "MON", "TUE", "WED", "THU", "FRI", "SAT")
@@ -264,7 +264,7 @@ def das_crazy_pmf(time_range: Sequence[Annotated[float, Hours]], moment_range: S
     )
 
     t = time_range[3]
-    x = 12
+    x = 11
     y = poisson.pmf(x, MOMENT_RATE * (t * 3600))
     trace_coordinate(ax, (x, y))
     ax.annotate(
@@ -293,7 +293,7 @@ def das_crazy_cdf(time_range: Sequence[Annotated[float, Hours]], moment_range: S
     )
 
     t = time_range[-1]
-    x = 30
+    x = 27
     y = poisson.cdf(x, MOMENT_RATE * (t * 3600))
     trace_coordinate(ax, (x, y))
     ax.annotate(
